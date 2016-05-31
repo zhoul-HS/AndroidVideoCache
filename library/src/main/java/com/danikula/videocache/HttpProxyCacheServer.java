@@ -2,7 +2,6 @@ package com.danikula.videocache;
 
 import android.content.Context;
 import android.os.SystemClock;
-import android.util.Log;
 
 import com.danikula.videocache.file.DiskUsage;
 import com.danikula.videocache.file.FileDeleteListener;
@@ -34,7 +33,6 @@ import java.util.concurrent.TimeoutException;
 
 import static com.danikula.videocache.Preconditions.checkAllNotNull;
 import static com.danikula.videocache.Preconditions.checkNotNull;
-import static com.danikula.videocache.ProxyCacheUtils.LOG_TAG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -58,6 +56,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 @SuppressWarnings("UnusedDeclaration")
 public class HttpProxyCacheServer {
+
+    private static Logger sLogger = new Logger("HttpProxyCacheServer");
 
     private static final String PROXY_HOST = "127.0.0.1";
     private static final String PING_REQUEST = "ping";
@@ -86,7 +86,7 @@ public class HttpProxyCacheServer {
             this.waitConnectionThread = new Thread(new WaitRequestsRunnable(startSignal));
             this.waitConnectionThread.start();
             startSignal.await(); // freeze thread, wait for server starts
-            Log.i(LOG_TAG, "Proxy cache server started. Ping it...");
+            sLogger.i("Proxy cache server started. Ping it...");
             makeSureServerWorks();
         } catch (IOException | InterruptedException e) {
             socketProcessor.shutdown();
@@ -107,12 +107,13 @@ public class HttpProxyCacheServer {
                 }
                 SystemClock.sleep(delay);
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                Log.e(LOG_TAG, "Error pinging server [attempt: " + pingAttempts + ", timeout: " + delay + "]. ", e);
+                sLogger.e("Error pinging server [attempt: " + pingAttempts + ", timeout: " + delay + "]. ", e);
             }
             pingAttempts++;
             delay *= 2;
         }
-        Log.e(LOG_TAG, "Shutdown server… Error pinging server [attempts: " + pingAttempts + ", max timeout: " + delay / 2 + "]. " +
+        sLogger.e("Shutdown server… Error pinging server [attempts: " + pingAttempts
+                + ", max timeout: " + delay / 2 + "]. " +
                 "If you see this message, please, email me danikula@gmail.com");
         shutdown();
     }
@@ -126,10 +127,10 @@ public class HttpProxyCacheServer {
             byte[] response = new byte[expectedResponse.length];
             source.read(response);
             boolean pingOk = Arrays.equals(expectedResponse, response);
-            Log.d(LOG_TAG, "Ping response: `" + new String(response) + "`, pinged? " + pingOk);
+            sLogger.d("Ping response: `" + new String(response) + "`, pinged? " + pingOk);
             return pingOk;
         } catch (ProxyCacheException e) {
-            Log.e(LOG_TAG, "Error reading ping response", e);
+            sLogger.e("Error reading ping response", e);
             return false;
         } finally {
             source.close();
@@ -138,7 +139,8 @@ public class HttpProxyCacheServer {
 
     public String getProxyUrl(String url) {
         if (!pinged) {
-            Log.e(LOG_TAG, "Proxy server isn't pinged. Caching doesn't work. If you see this message, please, email me danikula@gmail.com");
+            sLogger.e("Proxy server isn't pinged. Caching doesn't work." +
+                    " If you see this message, please, email me danikula@gmail.com");
         }
         return pinged ? appendToProxyUrl(url) : url;
     }
@@ -179,7 +181,7 @@ public class HttpProxyCacheServer {
             try {
                 getClients(url).registerCacheListener(cacheListener);
             } catch (ProxyCacheException e) {
-                Log.d(LOG_TAG, "Error registering cache listener", e);
+                sLogger.d("Error registering cache listener", e);
             }
         }
     }
@@ -190,7 +192,7 @@ public class HttpProxyCacheServer {
             try {
                 getClients(url).unregisterCacheListener(cacheListener);
             } catch (ProxyCacheException e) {
-                Log.d(LOG_TAG, "Error registering cache listener", e);
+                sLogger.d("Error registering cache listener", e);
             }
         }
     }
@@ -205,7 +207,7 @@ public class HttpProxyCacheServer {
     }
 
     public void shutdown() {
-        Log.i(LOG_TAG, "Shutdown proxy server");
+        sLogger.i("Shutdown proxy server");
 
         shutdownClients();
 
@@ -232,7 +234,7 @@ public class HttpProxyCacheServer {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 Socket socket = serverSocket.accept();
-                Log.d(LOG_TAG, "Accept new socket " + socket);
+                sLogger.d("Accept new socket " + socket);
                 socketProcessor.submit(new SocketProcessorRunnable(socket));
             }
         } catch (IOException e) {
@@ -243,7 +245,7 @@ public class HttpProxyCacheServer {
     private void processSocket(Socket socket) {
         try {
             GetRequest request = GetRequest.read(socket.getInputStream());
-            Log.i(LOG_TAG, "Request to cache proxy:" + request);
+            sLogger.i("Request to cache proxy:" + request);
             String url = ProxyCacheUtils.decode(request.uri);
             if (PING_REQUEST.equals(url)) {
                 responseToPing(socket);
@@ -254,12 +256,12 @@ public class HttpProxyCacheServer {
         } catch (SocketException e) {
             // There is no way to determine that client closed connection http://stackoverflow.com/a/10241044/999458
             // So just to prevent log flooding don't log stacktrace
-            Log.d(LOG_TAG, "Closing socket… Socket is closed by client.");
+            sLogger.d("Closing socket… Socket is closed by client.");
         } catch (ProxyCacheException | IOException e) {
             onError(new ProxyCacheException("Error processing request", e));
         } finally {
             releaseSocket(socket);
-            Log.d(LOG_TAG, "Opened connections: " + getClientsCount());
+            sLogger.d("Opened connections: " + getClientsCount());
         }
     }
 
@@ -304,7 +306,7 @@ public class HttpProxyCacheServer {
         } catch (SocketException e) {
             // There is no way to determine that client closed connection http://stackoverflow.com/a/10241044/999458
             // So just to prevent log flooding don't log stacktrace
-            Log.d(LOG_TAG, "Releasing input stream… Socket is closed by client.");
+            sLogger.d("Releasing input stream… Socket is closed by client.");
         } catch (IOException e) {
             onError(new ProxyCacheException("Error closing socket input stream", e));
         }
@@ -331,7 +333,7 @@ public class HttpProxyCacheServer {
     }
 
     private void onError(Throwable e) {
-        Log.e(LOG_TAG, "HttpProxyCacheServer error", e);
+        sLogger.e("HttpProxyCacheServer error", e);
     }
 
     private final class WaitRequestsRunnable implements Runnable {

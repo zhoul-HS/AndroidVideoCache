@@ -1,15 +1,15 @@
 buildscript {
     repositories {
         jcenter()
-    }
+    }/*
     dependencies {
         classpath 'com.novoda:bintray-release:0.2.10'
-    }
+    }*/
 }
 
 apply plugin: 'idea'
 apply plugin: 'java'
-apply plugin: 'bintray-release'
+//apply plugin: 'bintray-release'
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
@@ -28,6 +28,7 @@ dependencies {
     compile 'com.google.android:android:1.6_r2'
 }
 
+/*
 publish {
     userOrg = 'alexeydanilov'
     groupId = 'com.danikula'
@@ -35,4 +36,4 @@ publish {
     publishVersion = '2.3.4'
     description = 'Cache support for android VideoView'
     website = 'https://github.com/danikula/AndroidVideoCache'
-}
+}*/
